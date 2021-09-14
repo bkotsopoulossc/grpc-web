@@ -32,13 +32,15 @@ var packageDefinition = protoLoader.loadSync(
      oneofs: true
     });
 var protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
-var helloworld = protoDescriptor.helloworld;
+var protoPkg = protoDescriptor.snapchat.gateway;
 
 /**
  * @param {!Object} call
  * @param {function():?} callback
  */
 function doSayHello(call, callback) {
+  console.log('starting doSayHello')
+
   callback(null, {message: 'Hello! '+ call.request.name});
 }
 
@@ -46,20 +48,80 @@ function doSayHello(call, callback) {
  * @param {!Object} call
  */
 function doSayRepeatHello(call) {
+  console.log(`starting doSayRepeatHello with ${JSON.stringify(call.request)}`)
+
   var senders = [];
   function sender(name) {
     return (callback) => {
       call.write({
         message: 'Hey! ' + name
       });
-      _.delay(callback, 500); // in ms
+      _.delay(callback, 1000); // in ms
     };
   }
-  for (var i = 0; i < call.request.count; i++) {
-    senders[i] = sender(call.request.name + i);
+  for (var i = 0; i < 3; i++) {
+    senders[i] = sender('from backend: ' + i);
   }
+  console.log('about to end')
   async.series(senders, () => {
+    console.log('end')
     call.end();
+  });
+  console.log('done')
+}
+
+function doConnect(call) {
+  console.log(`starting doConnect from ${call.request.path}`)
+
+  var senders = [];
+  function sender(name) {
+    return (callback) => {
+      const writeback = 'Hey! ' + name
+      console.log(`writing back: ${writeback}`)
+      call.write({
+        path: writeback
+      });
+      _.delay(callback, 1000); // in ms
+    };
+  }
+  for (var i = 0; i < 3; i++) {
+    senders[i] = sender(call.request.path + i);
+  }
+  console.log('about to end')
+  async.series(senders, () => {
+    console.log('end')
+    call.end();
+  });
+  console.log('done')
+}
+
+function doConnect2(call) {
+  call.on('data', function(msg) {
+    console.log(`doConnect2 on data: ${msg.path}`)
+
+    var senders = [];
+    function sender(name) {
+      return (callback) => {
+        const writeback = 'Hey! ' + name
+        console.log(`writing back: ${writeback}`)
+        call.write({
+          path: writeback
+        });
+        _.delay(callback, 10000); // in ms
+      };
+    }
+    for (var i = 0; i < 3; i++) {
+      senders[i] = sender(msg.path + i);
+    }
+    console.log('about to end')
+    async.series(senders, () => {
+      console.log('done writing back')
+      call.end();
+    });
+    console.log('done processing onConnect')
+  });
+  call.on('end', function() {
+    console.log('on end')
   });
 }
 
@@ -68,14 +130,16 @@ function doSayRepeatHello(call) {
  */
 function getServer() {
   var server = new grpc.Server();
-  server.addService(helloworld.Greeter.service, {
+  server.addService(protoPkg.Gateway.service, {
     sayHello: doSayHello,
     sayRepeatHello: doSayRepeatHello,
+    connect: doConnect2,
   });
   return server;
 }
 
 if (require.main === module) {
+  console.log('starting server')
   var server = getServer();
   server.bindAsync(
     '0.0.0.0:9090', grpc.ServerCredentials.createInsecure(), (err, port) => {

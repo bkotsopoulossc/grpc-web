@@ -14,13 +14,15 @@
 
 syntax = "proto3";
 
-package helloworld;
+package snapchat.gateway;
 
-service Greeter {
+service Gateway {
   // unary call
   rpc SayHello(HelloRequest) returns (HelloReply);
   // server streaming call
   rpc SayRepeatHello(RepeatHelloRequest) returns (stream HelloReply);
+
+  rpc Connect (stream Message) returns (stream Message);
 }
 
 message HelloRequest {
@@ -34,4 +36,9 @@ message RepeatHelloRequest {
 
 message HelloReply {
   string message = 1;
+}
+
+message Message {
+    string path = 1;
+    bytes message_contents = 2;
 }
