@@ -264,13 +264,20 @@ $ protoc -I=. helloworld.proto \
   --grpc-web_out=import_style=commonjs,mode=grpcwebtext:.
 ```
 
+For go-lang:
+```
+% protoc --go_out=snapchat_gateway --go_opt=paths=source_relative \
+    --go-grpc_out=snapchat_gateway --go-grpc_opt=paths=source_relative \
+    helloworld.proto
+```
+
 After the command runs successfully, you should now see two new files generated
 in the current directory:
 
  - `helloworld_pb.js`: this contains the `HelloRequest` and `HelloReply`
    classes
  - `helloworld_grpc_web_pb.js`: this contains the `GreeterClient` class
- 
+
 These are also the 2 files that our `client.js` file imported earlier in the
 example.
 

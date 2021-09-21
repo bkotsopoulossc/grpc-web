@@ -20,102 +20,114 @@ const {HelloRequest, RepeatHelloRequest,
        HelloReply, Message} = require('./helloworld_pb.js');
 const {GatewayClient} = require('./helloworld_grpc_web_pb.js');
 
-var client = new GatewayClient('http://' + window.location.hostname + ':8080',
-                               null, null);
+const domain = 'http://localhost:8080'
+
+var client = new GatewayClient(domain, null, null);
 
 console.log('starting up')
 
+console.log('about to make fetch')
+const fetcher = (path, body) => {
+  fetch(`${domain}${path}`, {
+    "headers": {
+      "accept": "*/*",
+      "accept-language": "en-US,en;q=0.9",
+      "cache-control": "no-cache",
+      "content-type": "application/grpc-web+proto",
+      // "pragma": "no-cache",
+      "x-grpc-web": "1",
+      "x-user-agent": "grpc-web-javascript/0.1"
+    },
+    "referrer": "http://localhost:8082/",
+    "body": body,
+    "mode": "cors",
+    // Switching this to "include" will raise cors issues
+    "referrerPolicy": "strict-origin-when-cross-origin",
+    // "credentials": "include",
+    "method": "POST"
+  })
+  .then(response => {
+    console.log('processing response')
+    const reader = response.body.getReader();
+    reader.read().then(function processText({ done, value }) {
+      console.log('in chunk reader')
+
+      if (done) {
+        console.log('stream done')
+        return
+      }
+
+      const bufLen = value[4]
+      const isMsg = !Boolean(value[0])
+      const protoBytes = value.slice(5, 5 + bufLen)
+
+      console.log(`Recieved: ${value.length}, len: ${bufLen}, isMsg: ${isMsg}`)
+
+      if (isMsg) {
+        // const response = HelloReply.deserializeBinary(protoBytes)
+        // console.log(`Message: ${response.getMessage()}`)
+        const msgLen = protoBytes[0]
+        const strLen = protoBytes[1]
+        const protoAsString = new TextDecoder().decode(protoBytes).slice(2, 2 + strLen);
+        console.log(`Message: ${protoAsString}`)
+      } else {
+        const trailers = new TextDecoder().decode(protoBytes);
+        var statusCode = null
+        var statusMessage = null
+        trailers.split(/\r?\n/).forEach(trailer => {
+          const keyValue = trailer.split(':')
+          if (keyValue && keyValue.length == 2) {
+            const key = keyValue[0].trim()
+            const value = keyValue[1].trim()
+            if (key === "grpc-status") {
+              statusCode = parseInt(value)
+            } else if (key === "grpc-message") {
+              statusMessage = value
+            }
+          }
+        })
+        console.log(`Status: ${statusCode}, Msg: ${statusMessage}`)
+      }
+
+      return reader.read().then(processText);
+    })
+  })
+  .catch(error => console.log(`Fetch failed with error: ${error}`))
+}
+
 // us-east-1.aws.duplex.snapchat.com:443
 // us-east-1.aws.staging.duplex.snapchat.com:443
-console.log('about to make fetch')
-fetch("http://localhost:8080/snapchat.gateway.Gateway/Connect", {
-  "headers": {
-    "accept": "*/*",
-    "accept-language": "en-US,en;q=0.9",
-    "cache-control": "no-cache",
-    "content-type": "application/grpc-web+proto",
-    // "pragma": "no-cache",
-    "x-grpc-web": "1",
-    "x-user-agent": "grpc-web-javascript/0.1"
-  },
-  "referrer": "http://localhost:8082/",
-  "body": "\u0000\u0000\u0000\u0000\u0006\n\u0004Brad",
-  "method": "POST",
-  "mode": "cors",
-  // Switching this to "include" will raise cors issues
-  "referrerPolicy": "strict-origin-when-cross-origin",
-  "credentials": "include"
-})
-.then(response => {
-  console.log('processing response')
-  const reader = response.body.getReader();
-  reader.read().then(function processText({ done, value }) {
-    console.log('in chunk reader')
+fetcher(
+  "/snapchat.gateway.Gateway/Connect",
+  "\u0000\u0000\u0000\u0000\u0006\n\u0004Brad"
+)
 
-    if (done) {
-      console.log('stream done')
-      return
-    }
-
-    const bufLen = value[4]
-    const isMsg = !Boolean(value[0])
-    const protoBytes = value.slice(5, 5 + bufLen)
-
-    console.log(`Recieved: ${value.length}, len: ${bufLen}, isMsg: ${isMsg}`)
-
-    if (isMsg) {
-      // const response = HelloReply.deserializeBinary(protoBytes)
-      // console.log(`Message: ${response.getMessage()}`)
-      const msgLen = protoBytes[0]
-      const strLen = protoBytes[1]
-      const protoAsString = new TextDecoder().decode(protoBytes).slice(2, 2 + strLen);
-      console.log(`Message: ${protoAsString}`)
-    } else {
-      const trailers = new TextDecoder().decode(protoBytes);
-      var statusCode = null
-      var statusMessage = null
-      trailers.split(/\r?\n/).forEach(trailer => {
-        const keyValue = trailer.split(':')
-        if (keyValue && keyValue.length == 2) {
-          const key = keyValue[0].trim()
-          const value = keyValue[1].trim()
-          if (key === "grpc-status") {
-            statusCode = parseInt(value)
-          } else if (key === "grpc-message") {
-            statusMessage = value
-          }
-        }
-      })
-      console.log(`Status: ${statusCode}, Msg: ${statusMessage}`)
-    }
-
-    return reader.read().then(processText);
-  })
-})
-.catch(error => console.log(`Fetch failed with error: ${error}`))
+// fetcher(
+//   "/snapchat.gateway.Gateway/SayRepeatHello",
+//   "\u0000\u0000\u0000\u0000\u000f\n\u000bSSS request\u0010\u0005"
+// )
 
 // simple unary call
 // var request = new HelloRequest();
-// request.setName('World');
-
+// request.setName('unary request');
 
 // client.sayHello(request, {}, (err, response) => {
 //   if (err) {
 //     console.log(`Unexpected error for sayHello: code = ${err.code}` +
 //                 `, message = "${err.message}"`);
 //   } else {
-//     console.log('say hello')
+//     console.log('JS reply from say hello')
 //     console.log(response.getMessage());
 //   }
 // });
 
 // var streamRequest = new RepeatHelloRequest();
-// streamRequest.setName('World');
+// streamRequest.setName('SSS request');
 // streamRequest.setCount(5);
 
 // var stream = client.sayRepeatHello(streamRequest, {});
 // stream.on('data', (response) => {
-//   console.log(response.getMessage());
+//   console.log(`Reply from sayRepeatHello: ${response.getMessage()}`);
 // });
 // stream.on('error', (err) => {
 //   console.log(`Unexpected stream error: code = ${err.code}` +

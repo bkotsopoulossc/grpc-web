@@ -22,6 +22,9 @@ service Gateway {
   // server streaming call
   rpc SayRepeatHello(RepeatHelloRequest) returns (stream HelloReply);
 
+  // Note. The JS client uses the codegen, the server uses reflection. So save this
+  // with bidi so the server uses it, but generate the codegen with SSS and check in
+  // so the client codegen works.
   rpc Connect (stream Message) returns (stream Message);
 }
 

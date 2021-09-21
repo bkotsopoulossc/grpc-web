@@ -107,7 +107,7 @@ function doConnect2(call) {
         call.write({
           path: writeback
         });
-        _.delay(callback, 10000); // in ms
+        _.delay(callback, 1000); // in ms
       };
     }
     for (var i = 0; i < 3; i++) {
