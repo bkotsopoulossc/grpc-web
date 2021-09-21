@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"io"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"time"
 
-	"google.golang.org/grpc"
 	pb "./snapchat_gateway"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -35,28 +35,31 @@ func (s *server) SayRepeatHello(in *pb.RepeatHelloRequest, stream pb.Gateway_Say
 		if err := stream.Send(reply); err != nil {
 			return err
 		}
-	    time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
 	return nil
 }
 
-func replyToConnect(in *pb.Message, stream pb.Gateway_ConnectServer) {
+func replyToConnect(in *pb.Message, stream pb.Gateway_ConnectServer) error {
 	log.Printf("in Connect - got request: %v", in)
 	for i := int32(1); i <= 5; i++ {
 		log.Printf("in Connect - replying: %d", i)
 		reply := &pb.Message{Path: fmt.Sprintf("Hello from golang %s %d", in.GetPath(), i)}
 		if err := stream.Send(reply); err != nil {
 			log.Printf("in Connect - error replying: %v", err)
-			return
+			return err
 		}
-	    time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
 	log.Print("in Connect - done all replies")
+	return nil
 }
 
-func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
+// impl without goroutines
+// remove underscore to make this impl active
+func (s *server) _Connect(stream pb.Gateway_ConnectServer) error {
 	log.Print("in Connect")
 	for {
 		in, err := stream.Recv()
@@ -69,12 +72,52 @@ func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
 			return err
 		}
 
-		replyToConnect(in, stream)
+		// If we reply on this goroutine, even though there is an EOF waiting in the stream,
+		// we keep it open until we are done sending our replies up.
+		err = replyToConnect(in, stream)
+		if err != nil {
+			return err
+		}
 
 		// If we do this, the client gets an end of stream 200 right away, and the server
 		// fails with an error from stream.Send(), saying context canceled
 		// go replyToConnect(in, stream)
 	}
+}
+
+func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
+	log.Print("in Connect")
+	streamErrChan := make(chan error)
+	go func() {
+		eofCounter := 1
+		for {
+			in, err := stream.Recv()
+			if err != nil && err != io.EOF {
+				log.Printf("in Connect - error in stream: %v", err)
+				streamErrChan <- err
+				return
+			}
+
+			if err == io.EOF {
+				if eofCounter <= 5 {
+					log.Printf("in Connect - EOF %d", eofCounter)
+					eofCounter = eofCounter + 1
+				}
+				continue
+			}
+
+			err = replyToConnect(in, stream)
+			if err != nil {
+				streamErrChan <- err
+				return
+			}
+		}
+	}()
+
+	streamErr := <-streamErrChan
+
+	fmt.Print("About to close Connect from server side, with error: %v", streamErr)
+	return streamErr
 }
 
 func main() {

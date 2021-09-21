@@ -36,6 +36,7 @@ const fetcher = (path, body) => {
       "content-type": "application/grpc-web+proto",
       // "pragma": "no-cache",
       "x-grpc-web": "1",
+      "grpc-timeout": "10S",
       "x-user-agent": "grpc-web-javascript/0.1"
     },
     "referrer": "http://localhost:8082/",
@@ -91,8 +92,15 @@ const fetcher = (path, body) => {
 
       return reader.read().then(processText);
     })
+    .catch(error => {
+      console.log(`Fetch readablestream promise failed with error: ${error}`)
+      fetcher(path, body)
+    })
   })
-  .catch(error => console.log(`Fetch failed with error: ${error}`))
+  .catch(error => {
+    console.log(`Fetch promise failed with error: ${error}`)
+    fetcher(path, body)
+  })
 }
 
 // us-east-1.aws.duplex.snapchat.com:443
