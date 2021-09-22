@@ -50,6 +50,7 @@ const fetcher = (path, body) => {
   .then(response => {
     console.log('processing response')
     const reader = response.body.getReader();
+    const beforeOpeningStream = performance.now()
     reader.read().then(function processText({ done, value }) {
       console.log('in chunk reader')
 
@@ -93,7 +94,8 @@ const fetcher = (path, body) => {
       return reader.read().then(processText);
     })
     .catch(error => {
-      console.log(`Fetch readablestream promise failed with error: ${error}`)
+      const streamTimeAliveSec = (performance.now() - beforeOpeningStream) / 1000
+      console.log(`Fetch readablestream promise failed with error: ${error}, was alive for ${streamTimeAliveSec}s`)
       fetcher(path, body)
     })
   })

@@ -90,7 +90,6 @@ func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
 	log.Print("in Connect")
 	streamErrChan := make(chan error)
 	go func() {
-		eofCounter := 1
 		for {
 			in, err := stream.Recv()
 			if err != nil && err != io.EOF {
@@ -100,11 +99,10 @@ func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
 			}
 
 			if err == io.EOF {
-				if eofCounter <= 5 {
-					log.Printf("in Connect - EOF %d", eofCounter)
-					eofCounter = eofCounter + 1
-				}
-				continue
+				// No need to busy-wait on EOF, just kill this goroutine, and
+				// let the request handler goroutine wait on the done channel.
+				log.Printf("Got EOF, exiting goroutine")
+				return
 			}
 
 			err = replyToConnect(in, stream)
