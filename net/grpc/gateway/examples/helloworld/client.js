@@ -36,7 +36,7 @@ const fetcher = (path, body) => {
       "content-type": "application/grpc-web+proto",
       // "pragma": "no-cache",
       "x-grpc-web": "1",
-      "grpc-timeout": "10S",
+      "grpc-timeout": "2500m",
       "x-user-agent": "grpc-web-javascript/0.1"
     },
     "referrer": "http://localhost:8082/",

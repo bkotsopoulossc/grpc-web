@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"time"
+	"errors"
 
 	pb "./snapchat_gateway"
 	"google.golang.org/grpc"
@@ -114,10 +115,14 @@ func (s *server) Connect(stream pb.Gateway_ConnectServer) error {
 		}
 	}()
 
-	streamErr := <-streamErrChan
-
-	fmt.Print("About to close Connect from server side, with error: %v", streamErr)
-	return streamErr
+	select {
+	case streamErr := <-streamErrChan:
+		log.Printf("About to close Connect from server side, with error: %v", streamErr)
+		return streamErr
+	case <-stream.Context().Done():
+		log.Printf("Closing stream, server context is done")
+		return errors.New("server context is done")
+	}
 }
 
 func main() {
